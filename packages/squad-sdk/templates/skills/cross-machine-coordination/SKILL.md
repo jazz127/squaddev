@@ -1,3 +1,11 @@
+---
+name: "cross-machine-coordination"
+description: "Git-based task queuing pattern for coordinating agents across multiple machines"
+domain: "distributed-systems"
+confidence: "medium"
+source: "specification"
+---
+
 # Skill: Cross-Machine Coordination Pattern
 
 **Skill ID:** `cross-machine-coordination`  

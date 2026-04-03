@@ -1,3 +1,11 @@
+---
+name: "model-selection"
+description: "Determines which LLM model to use for each agent spawn using a 5-layer resolution hierarchy"
+domain: "orchestration"
+confidence: "high"
+source: "extracted"
+---
+
 # Model Selection
 
 > Determines which LLM model to use for each agent spawn.

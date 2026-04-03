@@ -1,3 +1,11 @@
+---
+name: "cli-wiring"
+description: "Checklist for correctly wiring new CLI commands in cli-entry.ts"
+domain: "cli-development"
+confidence: "high"
+source: "extracted"
+---
+
 # Skill: CLI Command Wiring
 
 **Bug class:** Commands implemented in `packages/squad-cli/src/cli/commands/` but never routed in `cli-entry.ts`.
