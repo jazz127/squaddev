@@ -11,7 +11,7 @@
  */
 
 import path from 'node:path';
-import { FSStorageProvider } from '@bradygaster/squad-sdk';
+import { FSStorageProvider, resolveExternalStateDir, deriveProjectKey } from '@bradygaster/squad-sdk';
 
 const storage = new FSStorageProvider();
 
@@ -25,12 +25,15 @@ export interface DoctorCheck {
 }
 
 /** Detected squad layout mode. */
-export type DoctorMode = 'local' | 'remote' | 'hub';
+export type DoctorMode = 'local' | 'remote' | 'hub' | 'external';
 
 /** Resolved mode + base directory for the squad. */
 interface ModeInfo {
   mode: DoctorMode;
+  /** Project-local `.squad/` marker directory. */
   squadDir: string;
+  /** Actual directory that holds the squad state to validate. */
+  stateDir: string;
   /** Only set when mode === 'remote' */
   teamRoot?: string;
 }
@@ -61,24 +64,37 @@ function detectMode(cwd: string): ModeInfo {
   const squadDir = path.join(cwd, '.squad');
   const configPath = path.join(squadDir, 'config.json');
 
-  // Remote mode: config.json exists with teamRoot
   if (fileExists(configPath)) {
     const cfg = tryReadJson(configPath);
-    if (cfg && typeof cfg === 'object' && 'teamRoot' in cfg) {
-      const raw = (cfg as Record<string, unknown>)['teamRoot'];
+    if (cfg && typeof cfg === 'object') {
+      const record = cfg as Record<string, unknown>;
+
+      if (record['stateLocation'] === 'external') {
+        const configuredProjectKey = record['projectKey'];
+        const projectKey = typeof configuredProjectKey === 'string' && configuredProjectKey.length > 0
+          ? configuredProjectKey
+          : deriveProjectKey(cwd);
+        return {
+          mode: 'external',
+          squadDir,
+          stateDir: resolveExternalStateDir(projectKey, false),
+        };
+      }
+
+      const raw = record['teamRoot'];
       if (typeof raw === 'string' && raw.length > 0) {
-        return { mode: 'remote', squadDir, teamRoot: raw };
+        return { mode: 'remote', squadDir, stateDir: squadDir, teamRoot: raw };
       }
     }
   }
 
   // Hub mode: squad-hub.json in cwd
   if (fileExists(path.join(cwd, 'squad-hub.json'))) {
-    return { mode: 'hub', squadDir };
+    return { mode: 'hub', squadDir, stateDir: squadDir };
   }
 
   // Default: local
-  return { mode: 'local', squadDir };
+  return { mode: 'local', squadDir, stateDir: squadDir };
 }
 
 // ── individual checks ───────────────────────────────────────────────
@@ -443,10 +459,10 @@ function checkSquadAgentMd(cwd: string): DoctorCheck {
  */
 export async function runDoctor(cwd?: string): Promise<DoctorCheck[]> {
   const resolvedCwd = cwd ?? process.cwd();
-  const { mode, squadDir, teamRoot } = detectMode(resolvedCwd);
+  const { mode, squadDir, stateDir, teamRoot } = detectMode(resolvedCwd);
   const checks: DoctorCheck[] = [];
 
-  // 1. .squad/ directory
+  // 1. .squad/ directory marker
   checks.push(checkSquadDir(squadDir));
 
   // 2. config.json (if present)
@@ -462,14 +478,14 @@ export async function runDoctor(cwd?: string): Promise<DoctorCheck[]> {
     checks.push(checkTeamRootResolves(squadDir, teamRoot));
   }
 
-  // 5–9 standard files (only if .squad/ exists)
-  if (isDirectory(squadDir)) {
-    checks.push(checkTeamMd(squadDir));
-    checks.push(checkRoutingMd(squadDir));
-    checks.push(checkAgentsDir(squadDir));
-    checks.push(checkCastingRegistry(squadDir));
-    checks.push(checkDecisionsMd(squadDir));
-    const rateLimitCheck = checkRateLimitStatus(squadDir);
+  // 5–9 standard files from the active squad state directory
+  if (isDirectory(stateDir)) {
+    checks.push(checkTeamMd(stateDir));
+    checks.push(checkRoutingMd(stateDir));
+    checks.push(checkAgentsDir(stateDir));
+    checks.push(checkCastingRegistry(stateDir));
+    checks.push(checkDecisionsMd(stateDir));
+    const rateLimitCheck = checkRateLimitStatus(stateDir);
     if (rateLimitCheck) checks.push(rateLimitCheck);
   }
 

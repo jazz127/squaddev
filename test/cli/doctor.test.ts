@@ -12,6 +12,7 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 import { randomBytes } from 'crypto';
 import { runDoctor, getDoctorMode, checkNodeVersion } from '@bradygaster/squad-cli/commands/doctor';
+import { resolveExternalStateDir } from '@bradygaster/squad-sdk';
 import type { DoctorCheck } from '@bradygaster/squad-cli/commands/doctor';
 
 const TEST_ROOT = join(process.cwd(), `.test-doctor-${randomBytes(4).toString('hex')}`);
@@ -99,6 +100,55 @@ describe('squad doctor', () => {
     await scaffold(TEST_ROOT);
     const mode = getDoctorMode(TEST_ROOT);
     expect(mode).toBe('local');
+  });
+
+  it('detects external mode and validates the external state directory', async () => {
+    const origAppData = process.env['APPDATA'];
+    const origXdgConfig = process.env['XDG_CONFIG_HOME'];
+    const externalHome = join(TEST_ROOT, '.external-home');
+
+    try {
+      if (process.platform === 'win32') {
+        process.env['APPDATA'] = externalHome;
+      } else {
+        process.env['XDG_CONFIG_HOME'] = externalHome;
+      }
+
+      const projectKey = 'doctor-external-mode';
+      const externalDir = resolveExternalStateDir(projectKey, true);
+
+      await mkdir(join(externalDir, 'agents', 'edie'), { recursive: true });
+      await mkdir(join(externalDir, 'casting'), { recursive: true });
+      await writeFile(join(externalDir, 'team.md'), '# Team\n\n## Members\n\n- Edie\n');
+      await writeFile(join(externalDir, 'routing.md'), '# Routing\n');
+      await writeFile(join(externalDir, 'decisions.md'), '# Decisions\n');
+      await writeFile(
+        join(externalDir, 'casting', 'registry.json'),
+        JSON.stringify({ agents: [] }, null, 2),
+      );
+
+      await mkdir(join(TEST_ROOT, '.squad'), { recursive: true });
+      await writeFile(
+        join(TEST_ROOT, '.squad', 'config.json'),
+        JSON.stringify({ version: 1, teamRoot: '.', projectKey, stateLocation: 'external' }),
+      );
+      await mkdir(join(TEST_ROOT, '.github', 'agents'), { recursive: true });
+      await writeFile(join(TEST_ROOT, '.github', 'agents', 'squad.agent.md'), '# Squad Agent\n');
+
+      const mode = getDoctorMode(TEST_ROOT);
+      expect(mode).toBe('external');
+
+      const checks = await runDoctor(TEST_ROOT);
+      const failed = checks.filter((c: DoctorCheck) => c.status === 'fail');
+      expect(failed).toEqual([]);
+      expect(checks.some((c: DoctorCheck) => c.name === 'team.md found with ## Members header' && c.status === 'pass')).toBe(true);
+      expect(checks.some((c: DoctorCheck) => c.name === 'routing.md found' && c.status === 'pass')).toBe(true);
+    } finally {
+      if (origAppData !== undefined) process.env['APPDATA'] = origAppData;
+      else delete process.env['APPDATA'];
+      if (origXdgConfig !== undefined) process.env['XDG_CONFIG_HOME'] = origXdgConfig;
+      else delete process.env['XDG_CONFIG_HOME'];
+    }
   });
 
   it('reports node:sqlite check as pass on current Node version', async () => {
