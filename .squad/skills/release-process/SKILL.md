@@ -1,3 +1,11 @@
+---
+name: "release-process"
+description: "Battle-tested release checklist and rules derived from the v0.9.0→v0.9.1 incident"
+domain: "release-engineering"
+confidence: "high"
+source: "extracted"
+---
+
 # Release Process
 
 > Earned knowledge from the v0.9.0→v0.9.1 incident. Every agent involved in releases MUST read this before starting release work.

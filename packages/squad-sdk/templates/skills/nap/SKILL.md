@@ -1,3 +1,11 @@
+---
+name: "nap"
+description: "Context hygiene — compress, prune, archive .squad/ state to reclaim context window budget"
+domain: "context-management"
+confidence: "medium"
+source: "extracted"
+---
+
 # Skill: nap
 
 > Context hygiene — compress, prune, archive .squad/ state

@@ -1,3 +1,11 @@
+---
+name: "personal-squad"
+description: "User-level agents that travel across projects via ambient discovery and ghost protocol"
+domain: "agent-management"
+confidence: "high"
+source: "extracted"
+---
+
 # Personal Squad — Skill Document
 
 ## What is a Personal Squad?
